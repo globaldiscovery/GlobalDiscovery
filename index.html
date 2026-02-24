@@ -23,8 +23,9 @@ body {
 .container {
     height: 100dvh;
     position: relative;
-    overflow: hidden;
-    touch-action: manipulation;
+    overflow-y: auto; 
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y; 
 }
 
 .scroller {
@@ -59,10 +60,10 @@ body {
     gap: 30px 40px;
     padding: clamp(20px, 5vw, 40px);
     overflow: hidden;
-    background: rgba(10,10,30,0.55); /* λίγο πιο σκούρο για να φαίνονται οι θεοί πάνω από το βίντεο */
+    background: rgba(10,10,30,0.55); 
 }
 
-/* === VIDEO BACKGROUND ΜΟΝΟ ΣΤΟ ΔΩΜΑΤΙΟ 1 === */
+
 .video-background {
     position: absolute;
     inset: 0;
@@ -81,7 +82,7 @@ body {
     border: none;
 }
 
-/* Οι εικόνες των θεών από πάνω */
+
 .room__img-wrapper {
     text-align: center;
     flex: 0 0 auto;
@@ -225,11 +226,11 @@ body {
 <div class="container" id="container">
     <div class="scroller" id="scroller">
 
-        <!-- ΔΩΜΑΤΙΟ 1: 12 ΘΕΟΙ + VIDEO BACKGROUND -->
+      
         <div class="room active" id="room1">
             <div class="room__side room__side--back">
                 
-                <!-- VIDEO BACKGROUND (παίζει αυτόματα, χωρίς ήχο, loop) -->
+            
                 <div class="video-background">
                     <iframe 
                         src="https://www.youtube.com/embed/Ft-K5ysqlPc?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=Ft-K5ysqlPc&amp;controls=0&amp;modestbranding=1&amp;rel=0&amp;playsinline=1" 
@@ -240,7 +241,7 @@ body {
                     </iframe>
                 </div>
 
-                <!-- 12 ΘΕΟΙ (ακριβώς όπως τους είχες) -->
+              
                 <div class="room__img-wrapper" data-desc="Δίας">
                     <img class="room__img" loading="lazy" src="https://upload.wikimedia.org/wikipedia/commons/c/c8/Jupiter_Smyrna_Louvre_Ma13.jpg" alt="Zeus"/>
                     <div class="caption">Δίας</div>
@@ -292,7 +293,7 @@ body {
             </div>
         </div>
 
-        <!-- ΔΩΜΑΤΙΟ 2: ΒΥΖΑΝΤΙΝΗ ΙΣΤΟΡΙΑ (ακριβώς όπως το είχες) -->
+      
         <div class="room" id="room2">
             <div class="room__side room__side--back">
                 <div class="room__img-wrapper" data-desc="Κωνσταντίνος ο Μέγας – Μωσαϊκό Αγίας Σοφίας">
@@ -360,11 +361,12 @@ body {
 </div>
 
 <script>
-// (όλος ο script κώδικας ακριβώς ίδιος όπως τον είχες – δεν άλλαξα τίποτα)
-const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 const container = document.getElementById('container');
 const rooms = document.querySelectorAll('.room');
 
+let isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+// Desktop mouse rotation
 if (!isTouchDevice) {
     container.addEventListener('mousemove', e => {
         const rect = container.getBoundingClientRect();
@@ -374,50 +376,48 @@ if (!isTouchDevice) {
         const centerY = rect.height / 2;
         const rotateY = ((mouseX - centerX) / centerX) * 15;
         const rotateX = ((centerY - mouseY) / centerY) * 10;
-        rooms.forEach(room => {
-            room.style.transform = `rotateY(${rotateY}deg) rotateX(${rotateX}deg)`;
-        });
+        rooms.forEach(room => room.style.transform = `rotateY(${rotateY}deg) rotateX(${rotateX}deg)`);
     });
 
-    container.addEventListener('mouseleave', () => {
-        rooms.forEach(room => room.style.transform = '');
-    });
+    container.addEventListener('mouseleave', () => rooms.forEach(room => room.style.transform = ''));
 }
 
+// Zoom
 let zoomLevel = 1;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3.0;
 const ZOOM_SPEED = 0.15;
+const scroller = document.getElementById('scroller');
 
-document.getElementById('scroller').addEventListener('wheel', function(e) {
+scroller.addEventListener('wheel', e => {
     e.preventDefault();
-    const direction = e.deltaY > 0 ? -1 : 1;
-    zoomLevel += direction * ZOOM_SPEED;
+    zoomLevel += (e.deltaY < 0 ? 1 : -1) * ZOOM_SPEED;
     zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomLevel));
     document.documentElement.style.setProperty('--zoom', zoomLevel);
 }, { passive: false });
 
+// Popup
 const popup = document.getElementById('popup');
 const popupText = document.getElementById('popup-text');
 const closePopup = document.getElementById('close-popup');
-
 document.querySelectorAll('.room__img-wrapper').forEach(wrapper => {
     wrapper.addEventListener('click', () => {
         popupText.innerText = wrapper.dataset.desc;
         popup.style.display = 'block';
     });
 });
+closePopup.addEventListener('click', () => popup.style.display = 'none');
 
-closePopup.addEventListener('click', () => {
-    popup.style.display = 'none';
-});
-
+// Rooms navigation
 let currentRoom = 0;
+let lastRotationX = 0;
+let lastRotationY = 0;
 
-const showRoom = (index) => {
-    rooms.forEach((room, i) => {
-        room.classList.toggle('active', i === index);
-    });
+const showRoom = index => {
+    rooms.forEach((room, i) => room.classList.toggle('active', i === index));
+    // reset rotations for new room
+    lastRotationX = 0;
+    lastRotationY = 0;
     rooms[index].style.transform = '';
 };
 
@@ -432,6 +432,46 @@ document.getElementById('next-room').addEventListener('click', () => {
 });
 
 showRoom(currentRoom);
+
+// Touch rotation and pinch zoom
+let lastTouch = null;
+let initialDistance = null;
+let initialZoom = null;
+
+container.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+        lastTouch = e.touches[0];
+    } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        initialDistance = Math.hypot(dx, dy);
+        initialZoom = zoomLevel;
+    }
+}, { passive: false });
+
+container.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && lastTouch) {
+        const dx = e.touches[0].clientX - lastTouch.clientX;
+        const dy = e.touches[0].clientY - lastTouch.clientY;
+        lastRotationY += dx / container.offsetWidth * 30;
+        lastRotationX -= dy / container.offsetHeight * 20;
+        rooms[currentRoom].style.transform = `rotateY(${lastRotationY}deg) rotateX(${lastRotationX}deg)`;
+        lastTouch = e.touches[0];
+    } else if (e.touches.length === 2 && initialDistance) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const distance = Math.hypot(dx, dy);
+        zoomLevel = initialZoom * (distance / initialDistance);
+        zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomLevel));
+        document.documentElement.style.setProperty('--zoom', zoomLevel);
+    }
+}, { passive: false });
+
+container.addEventListener('touchend', e => {
+    if (e.touches.length < 2) initialDistance = initialZoom = null;
+    if (e.touches.length === 0) lastTouch = null;
+});
 </script>
 
 </body>
