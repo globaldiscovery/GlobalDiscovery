@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GlobalDiscovery: Olympus & Byzantine</title>
+<link href="https://fonts.googleapis.com/css?family=Josefin+Sans:400,700" rel="stylesheet">
+<style>
+body { margin:0; background:#000; font-family:'Josefin Sans',sans-serif; color:white; overflow:hidden; }
+.container { width:100vw; height:100vh; position:relative; overflow:hidden; }
+.room { width:100%; height:100%; position:absolute; top:0; left:0; display:none; }
+.room.active { display:block; }
+.room__side { position:absolute; inset:0; display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start; padding:40px; gap:30px; background:radial-gradient(circle at center, #222 0%, #000 100%); overflow-y:auto; }
+.room__statue { width:160px; cursor:pointer; text-align:center; flex:0 0 auto; }
+.room__statue img { width:100%; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.7); }
+.room__statue .caption { margin-top:5px; font-size:0.85rem; }
+#popup { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.95); padding:20px; border-radius:12px; max-width:90vw; max-height:80vh; overflow-y:auto; color:#fff; display:none; z-index:500; }
+#popup button { margin-top:10px; padding:6px 12px; cursor:pointer; background:#333; color:#fff; border:none; border-radius:6px; }
+#room-nav { position:absolute; top:50%; width:100%; display:flex; justify-content:space-between; transform:translateY(-50%); z-index:300; }
+#room-nav button { background:rgba(0,0,0,0.5); border:none; color:white; font-size:2rem; width:60px; height:60px; border-radius:50%; cursor:pointer; }
+#room-nav button:hover { background:rgba(0,0,0,0.8); }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="room active" id="room1">
+        <div class="room__side" id="room1-side"></div>
+    </div>
+    <div class="room" id="room2">
+        <div class="room__side" id="room2-side"></div>
+    </div>
+
+    <div id="room-nav">
+        <button id="prev-room">←</button>
+        <button id="next-room">→</button>
+    </div>
+</div>
+
+<div id="popup">
+    <div id="popup-text"></div>
+    <button id="close-popup">Κλείσιμο</button>
+</div>
+
+<script>
+// --- Rooms & Items ---
+const roomsConfig = [
+    { id:'room1', items:["Zeus","Hera","Poseidon","Athena","Apollo","Artemis","Ares","Aphrodite","Hephaestus","Hermes","Demeter","Dionysus"] },
+    { id:'room2', items:[
+        "Constantine I","Constantius II","Julian the Apostate","Julius Nepos","Theodosius I","Arcadius","Honorius",
+        "Theodosius II","Marcian","Justin I","Justin II","Tiberius II Constantine",
+        "Phocas","Heraclius","Constans II","Constantine IV","Justinian II","Constantine V",
+        "Constantine VI","Michael I Rangabe","Michael II","Michael III","Basil I",
+        "Alexander","Constantine VII","Romanos I","Romanos II","Nikephoros II Phokas","John I Tzimiskes",
+        "Basil II","Constantine VIII","Romanos III","Constantine IX","Michael VI",
+        "Isaac I Komnenos","Constantine X","Michael VII","Nikephoros III Botaneiates","Alexios I Komnenos",
+        "John II Komnenos","Manuel I Komnenos","Alexios II Komnenos","Andronikos I Komnenos",
+        "Isaac II Angelos","Alexios III Angelos","Alexios IV Angelos","Alexios V Doukas","Theodore I Laskaris",
+        "John III Doukas Vatatzes","Theodore II Laskaris","Michael VIII Palaiologos","Andronikos II Palaiologos",
+        "Andronikos III Palaiologos","John V Palaiologos","John VI Kantakouzenos","John VII Palaiologos",
+        "Manuel II Palaiologos","John VIII Palaiologos","Constantine XI Palaiologos"
+    ]}
+];
+
+// --- Fetch Wikipedia summary ---
+async function fetchWiki(title){
+    try{
+        const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+        if(!res.ok) throw new Error('Network error');
+        const data = await res.json();
+        return {
+            title: data.title,
+            extract: data.extract,
+            description: data.description || "",
+            image: data.thumbnail ? data.thumbnail.source : 'https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg'
+        };
+    } catch(e){ console.error(e); return {title, extract:"No info", description:"", image:'https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg'} }
+}
+
+// --- Populate Room ---
+async function populateRoom(roomIndex){
+    const room = roomsConfig[roomIndex];
+    const sideEl = document.getElementById(`${room.id}-side`);
+    for(let name of room.items){
+        const data = await fetchWiki(name);
+
+        const statue = document.createElement('div');
+        statue.className='room__statue';
+
+        const img = document.createElement('img');
+        img.src = data.image;
+        img.alt = data.title;
+
+        const caption = document.createElement('div');
+        caption.className='caption';
+        caption.textContent = data.title;
+
+        statue.appendChild(img);
+        statue.appendChild(caption);
+        sideEl.appendChild(statue);
+
+        statue.addEventListener('click',()=>{
+            const popup = document.getElementById('popup');
+            const popupText = document.getElementById('popup-text');
+            popupText.innerHTML = `<strong>${data.title}</strong><br>${data.description?`<em>${data.description}</em><br>`:""}${data.extract}`;
+            popup.style.display='block';
+        });
+    }
+}
+
+// Populate all rooms
+roomsConfig.forEach((_,i)=>populateRoom(i));
+
+// --- Room Navigation ---
+const rooms = document.querySelectorAll('.room');
+let currentRoom=0;
+function showRoom(i){ rooms.forEach((r,index)=>r.classList.toggle('active', index===i)); }
+document.getElementById('prev-room').addEventListener('click', ()=>{ currentRoom=(currentRoom-1+rooms.length)%rooms.length; showRoom(currentRoom); });
+document.getElementById('next-room').addEventListener('click', ()=>{ currentRoom=(currentRoom+1)%rooms.length; showRoom(currentRoom); });
+showRoom(currentRoom);
+
+// --- Popup close ---
+document.getElementById('close-popup').addEventListener('click', ()=>{ document.getElementById('popup').style.display='none'; });
+</script>
+</body>
+</html>
